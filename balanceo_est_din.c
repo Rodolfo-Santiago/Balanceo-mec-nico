@@ -6,12 +6,21 @@ Balanceo mecánico
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 #include <math.h>
+
+#ifdef _WIN32
+	#include <windows.h>
+#endif
 
 void presentacion_del_programa();
 void inicio_del_programa(int*);
 
 float* solicitar_datos(int);
+
+double leer_double_seguro(const char*);
+void limpiar_buffer_entrada();
 int validar_dato(float, float, float);
 void convertir_angulo(float*, int);
 
@@ -23,12 +32,17 @@ void imprimir_resultado(float*, float*, char);
 void reanudar_programa(int*);
 
 int main()
-{
+{	
+	#ifdef _WIN32
+		SetConsoleOutputCP(CP_UTF8);
+		SetConsoleCP(CP_UTF8);
+	#endif
+
     int opcion;
     float* datos;
     float* component_mBrB, *resB;
     float* component_mArA, *resA;
-    
+
     presentacion_del_programa();
     
     do {
@@ -63,18 +77,17 @@ int main()
 
 void presentacion_del_programa()
 {
-    printf("Balanceo\n");
-	printf("\nEste programa realiza los cálculos para el balanceo estático ");
-	printf("y dinámico de un sistema mecánico móvil con dos o tres masas.\n");
-	printf("Para el balanceo estático el programa toma como entrada la magnitud");
-	printf(" de dos masas ubicadas en un mismo plano y sus dos coordenadas polares,");
-	printf(" en metros y en grados, respectivamente.\n");
-	printf("Para el balance dinámico el programa toma como entrada la magnitud de las");
-	printf(" tres masas dispuestas alrededor y a lo largo de un eje, y sus tres");
-	printf(" coordenadas cilíndricas, en metros y grados, considerando como origen");
-	printf(" del sistema coordenado a la intersección del eje con el plano de corrección A.\n");
-	printf("También se toma como entrada la distancia del plano de correción A al plano de");
-	printf(" corrección B.\n");
+    printf("\nBALANCEO ESTÁTICO Y DINÁMICO\n"
+	"\nEste programa realiza los cálculos para el balanceo estático "
+	"y dinámico de un sistema mecánico móvil con dos o tres masas.\n"
+	"Para el balanceo estático el programa toma como entrada la magnitud"
+	" de dos masas ubicadas en un mismo plano y sus dos coordenadas polares,"
+	" en metros y en grados, respectivamente.\n"
+	"Para el balance dinámico el programa toma como entrada la magnitud de las"
+	" tres masas dispuestas alrededor y a lo largo de un eje, y sus tres"
+	" coordenadas cilíndricas, en metros y grados, considerando como origen"
+	" del sistema coordenado a la intersección del eje con el plano de corrección A.\n"
+	"También se toma como entrada la distancia del plano de correción A al plano de corrección B.\n");
 }
 
 void inicio_del_programa(int* opcion)
@@ -86,6 +99,8 @@ void inicio_del_programa(int* opcion)
     	printf("\nIngresa el número de la opción que elegiste: ");
     	scanf("%d", opcion);
 	} while (*opcion != 1 && *opcion != 2);
+
+	limpiar_buffer_entrada();
 }
 
 float* solicitar_datos(int num_brazos)
@@ -97,18 +112,15 @@ float* solicitar_datos(int num_brazos)
     {
         do {
             printf("\nIngrese los datos del brazo %d:\n", j);
-        	printf("Masa (kg): ");
-        	scanf("%f", datos + i);
+        	datos[i] = leer_double_seguro("Masa (kg): ");
         } while (validar_dato(datos[i], 0.001, 1000));
     	
     	do {
-        	printf("Radio (m): ");
-        	scanf("%f", datos + (i + 1));
+        	datos[i + 1] = leer_double_seguro("Radio (m)): ");
     	} while (validar_dato(datos[i + 1], 0.001, 100));
     	
     	do {
-        	printf("Ángulo (grados): ");
-        	scanf("%f", datos + (i + 2));
+        	datos[i + 2] = leer_double_seguro("Ángulo (grados): ");
     	} while (validar_dato(datos[i + 2], 0, 360));
     	
     	convertir_angulo(datos + (i + 2), 0);
@@ -116,15 +128,13 @@ float* solicitar_datos(int num_brazos)
     	if (num_brazos == 3)
     	{
         	do {
-            	printf("Distancia al plano A (m): ");
-            	scanf("%f", datos + (i + 3));
+            	datos[i + 3] = leer_double_seguro("Distancia al plano A (m): ");
         	} while (validar_dato(datos[i + 3], 0.001, 100));
         	
         	if (j == 3) {
         	    do {
         	    printf("\nIngrese la distancia de la masa de balanceo B al plano A:\n");
-            	printf("Distancia (m): ");
-            	scanf("%f", datos + (i + 4));
+            	datos[i + 4] = leer_double_seguro("Distancia (m): ");
         	    } while (validar_dato(datos[i + 4], 0.001, 100));
         	}
         	
@@ -132,6 +142,50 @@ float* solicitar_datos(int num_brazos)
     }
     
     return datos;
+}
+
+// Lector seguro para números de tipo double
+double leer_double_seguro(const char* mensaje)
+{	
+	double numero;
+	char* endptr;
+	char buf[100];
+
+	for (;;)
+	{
+		printf("\n%s", mensaje);
+
+		// Leer cadena de caracteres de tamaño BUF del stdin
+		if (fgets(buf, sizeof(buf), stdin) == NULL) {
+			printf("\nError en entrada. Intente de nuevo.\n");
+			continue;
+		}
+
+		// Revisar si después de leer la cadena sobró basura en stdin
+		if (strchr(buf, '\n') == NULL)
+			limpiar_buffer_entrada();
+
+		// Convertir la cadena leída a número tipo double
+		numero = strtod(buf, &endptr);
+
+		// Limpiar espacios, tabs, o saltos de línea después del número (si los hay)
+		while (isspace((unsigned char)*endptr))
+			endptr++;
+
+		// Después de todo, endptr debe apuntar al final de la cadena leída \0
+		if (*endptr == '\0')
+			return numero;
+
+		printf("\nEntrada inválida. Debe ingresar un número.\n");
+	}
+}
+
+// Limpiar los caracteres que están en el buffer de entrada (stdin)
+void limpiar_buffer_entrada()
+{
+	int c;
+	while ((c = getchar()) != '\n' && c != EOF)
+		;
 }
 
 int validar_dato(float dato, float limite_inf, float limite_sup)
@@ -147,7 +201,8 @@ int validar_dato(float dato, float limite_inf, float limite_sup)
 
 void convertir_angulo(float* angulo, int i)
 {
-    float constante[] = {M_PI, 180, M_PI};
+	double pi = acos(-1.0);
+    float constante[] = {pi, 180, pi};
     
     *angulo *= (constante[i] / constante[i + 1]);
 }
@@ -157,7 +212,7 @@ float* calcular_componentes(float* datos, int num_brazos, float* mBrB)
 {
     int i, j;
     float k;
-    
+    double pi = acos(-1.0);
     float* compo = (float*)calloc(2, sizeof(float));
     
     
@@ -169,7 +224,7 @@ float* calcular_componentes(float* datos, int num_brazos, float* mBrB)
         
         if (j == 8) compo[i] -= mBrB[i];
         
-        if (j == 4 * (num_brazos - 1)) { i++; j = -4; k = M_PI / 2; }
+        if (j == 4 * (num_brazos - 1)) { i++; j = -4; k = pi / 2; }
     }
 	
 	free(datos);
@@ -182,7 +237,7 @@ float* calcular_componentes_de_mB(float* datos)
 {
     int i, j;
     float k;
-    
+    double pi = acos(-1.0);
     float* componentes_B = (float*)calloc(2, sizeof(float));
     
     
@@ -192,7 +247,7 @@ float* calcular_componentes_de_mB(float* datos)
         
         componentes_B[i] -= (datos[j] * datos[j + 1] * sin(k - datos[j + 2]) * datos[j + 3]) / datos[12];
         
-        if (j == 8) { i++; j = -4; k = M_PI / 2; }
+        if (j == 8) { i++; j = -4; k = pi / 2; }
     }
 	
 	return componentes_B;
@@ -200,6 +255,7 @@ float* calcular_componentes_de_mB(float* datos)
 
 float* calcular_angulo_y_producto(float* res)
 {
+	double pi = acos(-1.0);
     float tol = 0.0001;
     float mbry = res[0];
     float mbrx = res[1];
@@ -210,12 +266,12 @@ float* calcular_angulo_y_producto(float* res)
 	else if (mbry == 0 && mbrx < 0) { res[0] = 180; }
 
 	if (mbry < 0 && mbrx > 0) { // En el cuadrante IV sumamos 2pi
-	    res[0] = 2 * M_PI + atan(mbry / mbrx);
+	    res[0] = 2 * pi + atan(mbry / mbrx);
 	    convertir_angulo(res, 1);
 	}
 	else if (mbrx < 0) // En el cuadrante II o III sumamos pi
 	{
-	    res[0] = M_PI + atan(mbry / mbrx);
+	    res[0] = pi + atan(mbry / mbrx);
 	    convertir_angulo(res, 1);
 	}
 	else { // Cuadrante I 
